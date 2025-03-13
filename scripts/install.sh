@@ -4,52 +4,62 @@ set -e
 # Used environments:
 # TO-DO - desc
 
-# Print an error message to the stderr stream.
-# Arguments:
-# 	A list of arguments that is combined into a
-#   single string and printed then.
 print_error() {
+	# Print an error message to the stderr stream.
+	# Arguments:
+	# 	A list of arguments that is combined into a
+	#   single string and printed then.
+
 	printf "%s\\n" "$*" >&2
 }
 
-# Print an error message to the stderr stream and
-# exit with code 1 from the script.
-# Arguments:
-# 	A list of arguments that is combined into a
-#   single string and printed then.
+
 print_error_and_exit() {
+	# Print an error message to the stderr stream and
+	# exit with code 1 from the script.
+	# Arguments:
+	# 	A list of arguments that is combined into a
+	#   single string and printed then.
+
 	printf "%s\\n" "$*" >&2
 	exit 1
 }
 
-# Get a hardcoded version tag of the currently
-# supported or developed version.
+
 get_current_version_tag() {
+	# Get a hardcoded version tag of the currently
+	# supported or developed version.
+
 	printf "v0.1.0"
 }
 
-# Check if a command is available on the current system.
-# Arguments:
-# 	$1 - The name of the command to check.
-# Returns:
-# 	0 - The command exists.
-# 	1 - The command does not exist.
+
 has_cmd() {
+	# Check if a command is available on the current system.
+	# Arguments:
+	# 	$1 - The name of the command to check.
+	# Returns:
+	# 	0 - The command exists.
+	# 	1 - The command does not exist.
+
 	type "$1" > /dev/null 2>&1
 }
 
-# Download a file using curl or wget. Query parameters
-# may be passed as arguments after supplying required arguments.
-# They get url encoded automatically.
-# Arguments:
-# 	$1 - The name of the output file that can include an absolute path.
-# 	$2 - The URL of the request.
-#		$Q - The list of query parameters for the request.
-# Conditions:
-# 	The script exits with an error if the commands are not found.
-# Examples:
-# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
+
 download_file() {
+	# Download a file using curl or wget. Query parameters
+	# may be passed as arguments after supplying required arguments.
+	# They get url encoded automatically.
+	# Arguments:
+	# 	$1 - The name of the output file that may include an absolute path.
+	# 	$2 - The URL of the request.
+	#		$Q - The list of query parameters for the request.
+	# Conditions:
+	# 	The script exits with an error if the commands are not found.
+	# Examples:
+	# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
+
+
 	local outfile="$1"
 	local url="$2"
 	shift 2
@@ -77,19 +87,21 @@ download_file() {
 	fi
 }
 
-# Make a GET request using curl or wget. Query parameters
-# may be passed as arguments after supplying required arguments.
-# They get url encoded automatically.
-# Arguments:
-# 	$2 - The URL of the request.
-#		$Q - The list of query parameters for the request.
-# Conditions:
-# 	The script exits with an error if the commands are not found.
-# Examples:
-# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
-# Returns(by print):
-# 	The received response content.
 make_get_request() {
+	# Make a GET request using curl or wget. Query parameters
+	# may be passed as arguments after supplying required arguments.
+	# They get url encoded automatically.
+	# Arguments:
+	# 	$2 - The URL of the request.
+	#		$Q - The list of query parameters for the request.
+	# Conditions:
+	# 	The script exits with an error if the commands are not found.
+	# Examples:
+	# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
+	# Returns(by print):
+	# 	The received response content.
+
+
 	local url="$1"
 	shift
 
@@ -118,10 +130,12 @@ make_get_request() {
 
 declare -r temp_path="/tmp/bash-crud"
 
-# Prepare a directory in '/tmp' for temporal files
-# of the current session and add that path to the
-# PATH variable.
+
 establish_temp_path() {
+	# Prepare a directory in '/tmp' for temporal files
+	# of the current session and add that path to the
+	# PATH variable.
+
 	if [ ! -d "$temp_path" ]; then
 		mkdir -p "$temp_path"
 	fi
@@ -134,14 +148,17 @@ establish_temp_path() {
 
 declare -r default_awkpath="/usr/share/awk"
 
-# Prepare a child directory for gawk programs
-# according to a value of the AWKPATH variable.
-# Conditions:
-# 	If AWKPATH has multiple paths then the last one is used.
-# 	If AWKPATH is unset then 'default_awkpath' is used.
-# Returns(by print):
-#		A directory path for gawk programs.
+
 establish_gawk_path() {
+	# Prepare a child directory for gawk programs
+	# according to a value of the AWKPATH variable.
+	# Conditions:
+	# 	If AWKPATH has multiple paths then the last one is used.
+	# 	If AWKPATH is unset then 'default_awkpath' is used.
+	# Returns(by print):
+	#		A directory path for gawk programs.
+
+
 	local awk_path
 	awk_path="$(gawk 'BEGIN { len=split(ENVIRON["AWKPATH"], arr, ":"); printf "%s", arr[len] }')"
 	awk_path="${awk_path:-$default_awkpath}"
@@ -152,7 +169,6 @@ establish_gawk_path() {
 }
 
 
-# TO-DO
 get_bin_dir() {
 	if [ -n "${BASH_CRUD_BIN_DIR:-}" ]; then
 		printf %s "$BASH_CRUD_BIN_DIR"
@@ -166,15 +182,18 @@ get_bin_dir() {
 #  jq
 # = = =
 
-# Get an architecture suffix for the 'jqlang/jq' tool,
-# according to its ci.yml file and the current machine's
-# architecture.
-# Conditions:
-#		The script exits with an error if the machine's
-#		architecture not supported/listed.
-# Returns:
-# 	An architecture suffix for the 'jq' tool.
+
 get_architecture_for_jq() {
+	# Get an architecture suffix for the 'jqlang/jq' tool,
+	# according to its ci.yml file and the current machine's
+	# architecture.
+	# Conditions:
+	#		The script exits with an error if the machine's
+	#		architecture not supported/listed.
+	# Returns:
+	# 	An architecture suffix for the 'jq' tool.
+
+
 	case "$(uname -m)" in
 				 'x86_64') printf 'amd64';;
 		'i686'|'i386') printf 'i386';;
@@ -185,13 +204,15 @@ get_architecture_for_jq() {
 	esac
 }
 
-# Setup the 'jq' tool if it is not installed.
+
 establish_jq() {
+	# Setup the 'jq' tool if it is not installed.
+
 	if has_cmd "jq"; then return; fi
 
 	printf "Command 'jq' not found. Downloading it for the current session.."
 	establish_temp_path
-	download "$(get_download_link "jq")" -o "$temp_path/jq"
+	download_file "$temp_path/jq" "$(get_download_link "jq")"
 	chmod 111 "$temp_path/jq"
 }
 
@@ -200,17 +221,19 @@ establish_jq() {
 #  Download links
 # = = = = = = = = =
 
-# Make a github API request to retrieve the content
-# of a specified repository's directory. Then extract
-# and return file links from that data.
-# Arguments:
-# 	$1 - The user name of the repository.
-# 	$2 - The repository name.
-# 	$3 - The release tag.
-# 	$4 - The directory path in the repository.
-# Returns(by print):
-# 	The list of file links from the repository.
 get_file_links_from_github_repo() {
+	# Make a github API request to retrieve the content
+	# of a specified repository's directory. Then extract
+	# and return file links from that data.
+	# Arguments:
+	# 	$1 - The user name of the repository.
+	# 	$2 - The repository name.
+	# 	$3 - The release tag.
+	# 	$4 - The directory path in the repository.
+	# Returns(by print):
+	# 	The list of file links from the repository.
+
+
 	# curl -GL --data-urlencode "ref=v0.1.0" "https://api.github.com/repos/gushi-cookie/bash-crud/contents/gawk"
 	printf ""
 }
