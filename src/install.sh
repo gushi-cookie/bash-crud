@@ -2,7 +2,12 @@
 set -e
 
 # Used environments:
-# TO-DO - desc
+# 	BASH_CRUD_DOWNLOADER:
+#			Which network command should be used for
+#			downloading files and making http requests.
+#			Valid values: ["curl", "wget"]. Default: "curl".
+#
+# 	TO-DO - desc
 
 print_error() {
 	# Print an error message to the stderr stream.
@@ -22,7 +27,7 @@ print_error_and_exit() {
 	#   single string and printed then.
 
 	printf "%s\\n" "$*" >&2
-	exit 1
+	return 1
 }
 
 
@@ -45,6 +50,26 @@ has_cmd() {
 	type "$1" > /dev/null 2>&1
 }
 
+get_downloader() {
+	if [ "${BASH_CRUD_DOWNLOADER:-}" == "curl" ]; then
+		if has_cmd "curl"; then printf %s "curl"; return; fi
+		print_error_and_exit "Selected downloader command 'curl' not found on the system."
+	fi
+
+	if [ "${BASH_CRUD_DOWNLOADER:-}" == "wget" ]; then
+		if has_cmd "wget"; then printf %s "wget"; return; fi
+		print_error_and_exit "Selected downloader command 'wget' not found on the system."
+	fi
+
+	if has_cmd "curl"; then
+		printf %s "curl"
+	elif has_cmd "wget"; then
+		printf %s "wget"
+	else
+		print_error_and_exit "Neither 'curl' nor 'wget' commands were found."
+	fi
+}
+
 
 download_file() {
 	# Download a file using curl or wget. Query parameters
@@ -57,8 +82,11 @@ download_file() {
 	# Conditions:
 	# 	The script exits with an error if the commands are not found.
 	# Examples:
-	# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
+	# 	1) download_file /dev/null https..com "req=5" "delete=yes" "please=sir"
 
+
+	local downloader
+	downloader="$(get_downloader)"
 
 	local outfile="$1"
 	local url="$2"
@@ -78,12 +106,10 @@ download_file() {
 		url="${url}?${query_params}"
 	fi
 
-  if has_cmd "curl"; then
+  if [ "$downloader" == "curl" ]; then
     curl -qf --compressed --progress-bar -o "$outfile" "$url"
-  elif has_cmd "wget"; then
+  elif [ "$downloader" == "wget" ]; then
 		wget --progress=bar -q -O "$outfile" "$url"
-	else
-		print_error_and_exit "Neither 'curl' nor 'wget' commands were found."
 	fi
 }
 
@@ -102,6 +128,9 @@ make_get_request() {
 	# 	The received response content.
 
 
+	local downloader
+	downloader="$(get_downloader)"
+
 	local url="$1"
 	shift
 
@@ -119,12 +148,10 @@ make_get_request() {
 		url="${url}?${query_params}"
 	fi
 
-	if has_cmd "curl"; then
+	if [ "$downloader" == "curl" ]; then
     curl -qfL --compressed "$url"
-  elif has_cmd "wget"; then
+  elif [ "$downloader" == "wget" ]; then
     wget -qO - "$url"
-	else
-		print_error_and_exit "Neither 'curl' nor 'wget' commands were found."
 	fi
 }
 
