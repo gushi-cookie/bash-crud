@@ -12,4 +12,7 @@
 		"riscv",
 		"urlencode"
 	],
+	"shellcheck.exclude": [
+		"2181"
+	]
 }

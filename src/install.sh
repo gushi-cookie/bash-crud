@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 # Used environments:
 # 	BASH_CRUD_DOWNLOADER
@@ -29,20 +28,29 @@ print_error() {
 	printf "%s\\n" "$*" >&2
 }
 
-print_error_and_exit() {
-	# Print an error message to the stderr stream and
-	# exit with code 1 from the script.
-	# Arguments:
-	# 	A list of arguments that is combined into a
-	#   single string and printed then.
+# print_call_stack() {
+# 	# Print a list of function calls that
+# 	# preceded this function call.
+# 	# Arguments:
+# 	#   $1 - Indentions size from the left in spaces.
+# 	# Returns:
+# 	#   The callstack list divided by new-line characters.
 
-	printf "%s\\n" "$*" >&2
-	return 1
-}
+
+# 	local indent=""
+# 	for ((i = 0; i < $1; i++)); do indent+=" "; done
+
+# 	for ((i = 0; i < ${#BASH_LINENO[@]}; i++)); do
+# 		[ $i -eq 0 ] && continue
+# 		printf "${indent}call '%s' at line %s\n" "${FUNCNAME[$i]}" "${BASH_LINENO[$i]}"
+# 	done
+# }
 
 get_current_version_tag() {
 	# Get a hardcoded version tag of the currently
 	# supported or developed version.
+	# Returns:
+	#   The version tag.
 
 	printf "v0.1.0"
 }
@@ -81,12 +89,33 @@ has_cmd() {
 	type "$1" > /dev/null 2>&1
 }
 
+# check_exit() {
+# 	# Check if a passed exit code is zero, otherwise
+# 	# terminate the script and print the callstack.
+# 	# Environments:
+# 	#   BC_TEST__
+# 	# Arguments:
+# 	#   $1 - The exit code to test.
+
+
+# 	[ "$1" -eq 0 ] && return 0
+
+# 	local stack;
+# 	stack="$(prepare_call_stack 2; echo -n .)"
+# 	stack="${stack%.}"
+
+# 	print_error "Unexpected exit code '$1' in the next callstack:"
+# 	printf "%s" "$stack" >&2
+
+# 	[ -z "${BC_TEST__DO_NOT_EXIT:-}" ] && exit 1
+# }
 
 # = = = = = = = = = = = = = = = =
 #    Managing: Required tools
 # = = = = = = = = = = = = = = = =
 
 get_architecture_for_jq() {
+	# $(..)
 	# Get an architecture suffix for the 'jqlang/jq' tool,
 	# according to its ci.yml file and the current machine's
 	# architecture.
@@ -94,7 +123,8 @@ get_architecture_for_jq() {
 	#		The script exits with an error if the machine's
 	#		architecture not supported/listed.
 	# Returns:
-	# 	An architecture suffix for the 'jq' tool.
+	#   An architecture suffix for the 'jq' tool.
+	#   Code 1 if the machine's architecture not supported.
 
 
 	case "$(uname -m)" in
@@ -103,7 +133,7 @@ get_architecture_for_jq() {
 				'aarch64') printf 'arm64';;
 					's390x') printf 's390x';;
 				'riscv64') printf 'riscv64';;
-								*) print_error_and_exit "Architecture '$(uname -m)' for 'jq' tool not supported.";;
+								*) print_error "Architecture '$(uname -m)' for 'jq' tool is not supported."; return 1;;
 	esac
 }
 
@@ -113,14 +143,21 @@ establish_jq() {
 	if has_cmd "jq"; then return 0; fi
 	printf "Command 'jq' not found. Downloading it for the current session..\n"
 
-	local temp_path
-	temp_path="$(establish_temp_path)"
+	local temp_path; temp_path="$(establish_temp_path)"
+	[ $? -ne 0 ] && return 1
 
-	download_file "$temp_path/jq" "$(get_download_link "jq")"
+	local url; url="$(get_download_link "jq")"
+	[ $? -ne 0 ] && return 1
+
+	download_file "$temp_path/jq" "$url"
+	[ $? -ne 0 ] && return 1
+
 	chmod 111 "$temp_path/jq"
+	[ $? -ne 0 ] && return 1
 }
 
 get_downloader() {
+	# $(..)
 	# Get a command name of the supported tool for
 	# making http requests.
 	# Environments:
@@ -129,29 +166,28 @@ get_downloader() {
 	# Conditions:
 	# 	If BASH_CRUD_DOWNLOADER is invalid or the supplied
 	#		command not found - exits with an error.
-	#		If none of supported commands not found - exits
+	#		If none of supported commands found - exits
 	#		with an error.
-	# Returns(by print):
+	# Returns:
 	# 	The appropriate downloader command name.
 
 
-	if [ "${BASH_CRUD_DOWNLOADER:-}" == "curl" ]; then
-		if has_cmd "curl"; then printf %s "curl"; return; fi
-		print_error_and_exit "Selected downloader command 'curl' not found on the system."
-	fi
+	local -a commands=("curl" "wget")
 
-	if [ "${BASH_CRUD_DOWNLOADER:-}" == "wget" ]; then
-		if has_cmd "wget"; then printf %s "wget"; return; fi
-		print_error_and_exit "Selected downloader command 'wget' not found on the system."
-	fi
+	for cmd in "${commands[@]}"; do
+		if [ "${BASH_CRUD_DOWNLOADER:-}" == "$cmd" ]; then
+			if has_cmd "$cmd"; then printf %s "$cmd"; return 0; fi
+			print_error "Selected downloader command '$cmd' not found on the system."
+			return 1
+		fi
+	done
 
-	if has_cmd "curl"; then
-		printf %s "curl"
-	elif has_cmd "wget"; then
-		printf %s "wget"
-	else
-		print_error_and_exit "Neither 'curl' nor 'wget' commands were found."
-	fi
+	for cmd in "${commands[@]}"; do
+		if has_cmd "$cmd"; then printf %s "$cmd"; return 0; fi
+	done
+
+	print_error "Neither 'curl' nor 'wget' commands were found."
+	return 1
 }
 
 
@@ -171,7 +207,9 @@ download_file() {
 	# 	1) download_file /dev/null https..com "req=5" "delete=yes" "please=sir"
 
 
-	local downloader=get_downloader
+	local downloader; downloader="$(get_downloader)"
+	[ $? -ne 0 ] && return 1
+
 	local outfile="$1"
 	local url="$2"
 	shift 2
@@ -183,6 +221,8 @@ download_file() {
 		shift
 
 		value="$(jq -nr --arg val "$value" '$val | @uri')"
+		[ $? -ne 0 ] && return 1
+
 		query_params="${query_params}&${key}=${value}"
 	done
 	if [ -n "$query_params" ]; then
@@ -191,13 +231,16 @@ download_file() {
 	fi
 
   if [ "$downloader" == "curl" ]; then
-    curl -qf --compressed --progress-bar -o "$outfile" "$url"
+		curl -qf --compressed --progress-bar -o "$outfile" "$url"
+		[ $? -ne 0 ] && return 1
   elif [ "$downloader" == "wget" ]; then
 		wget --progress=bar -q -O "$outfile" "$url"
+		[ $? -ne 0 ] && return 1
 	fi
 }
 
 make_get_request() {
+	# $(..)
 	# Make a GET request using curl or wget. Query parameters
 	# may be passed as arguments after supplying required arguments.
 	# They get url encoded automatically.
@@ -210,7 +253,9 @@ make_get_request() {
 	# 	The received response content.
 
 
-	local downloader=get_downloader
+	local downloader; downloader="$(get_downloader)"
+	[ $? -ne 0 ] && return 1
+
 	local url="$1"
 	shift
 
@@ -221,6 +266,8 @@ make_get_request() {
 		shift
 
 		value="$(jq -nr --arg val "$value" '$val | @uri')"
+		[ $? -ne 0 ] && return 1
+
 		query_params="${query_params}&${key}=${value}"
 	done
 	if [ -n "$query_params" ]; then
@@ -230,8 +277,10 @@ make_get_request() {
 
 	if [ "$downloader" == "curl" ]; then
     curl -qfL --compressed "$url"
+		[ $? -ne 0 ] && return 1
   elif [ "$downloader" == "wget" ]; then
     wget -qO - "$url"
+		[ $? -ne 0 ] && return 1
 	fi
 }
 
@@ -258,10 +307,11 @@ get_file_links_from_github_repo() {
 # = = = = = = = = = = = = = = = = = = = =
 
 establish_temp_path() {
+	# $(..)
 	# Prepare a directory in '/tmp' for temporary files
 	# of the current session and add that path to the
 	# PATH variable.
-	# Returns(by print):
+	# Returns:
 	#   The valid path of the temporary directory.
 
 
@@ -269,6 +319,7 @@ establish_temp_path() {
 
 	if [ ! -d "$temp_path" ]; then
 		mkdir -p "$temp_path"
+		[ $? -ne 0 ] && return 1
 	fi
 
 	if [[ ! "$PATH" =~ $temp_path ]]; then
@@ -279,6 +330,7 @@ establish_temp_path() {
 }
 
 establish_gawk_path() {
+	# $(..)
 	# Prepare a child directory for gawk programs
 	# according to a value of the AWKPATH variable.
 	# Conditions:
@@ -292,10 +344,13 @@ establish_gawk_path() {
 
 	local awk_path
 	awk_path="$(gawk 'BEGIN { len=split(ENVIRON["AWKPATH"], arr, ":"); printf "%s", arr[len] }')"
-	awk_path="${awk_path:-$default_awkpath}"
+	[ $? -ne 0 ] && return 1
 
-	local path="${awk_path}/bash-crud"
+	local path="${awk_path:-$default_awkpath}/bash-crud"
+
 	mkdir -p "$path"
+	[ $? -ne 0 ] && return 1
+
 	printf %s "$path"
 }
 
@@ -324,9 +379,12 @@ get_download_link() {
 	elif [ "$resource" == "install" ]; then
 		printf %s "https://raw.githubusercontent.com/${github_repo}/${version_tag}/scripts/install.sh"
 	elif [ "$resource" == "jq" ]; then
-		printf %s "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$(get_architecture_for_jq)"
+		local machine; machine="$(get_architecture_for_jq)"
+		[ $? -ne 0 ] && return 1
+		printf %s "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${machine}"
 	else
-		print_error_and_exit "Couldn't find a download link for resource type '${resource}'."
+		print_error "Couldn't find a download link for resource type '${resource}'."
+		return 1
 	fi
 }
 

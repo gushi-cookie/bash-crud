@@ -1,3 +1,5 @@
+#!/usr/bin/env bats
+
 setup() {
 	BC_TMP_DIR="/tmp/bash-crud-bats"
 	BC_DRAFT="${BC_TMP_DIR}/draft"
@@ -35,8 +37,12 @@ teardown() {
 	[ "$(cat "$BC_DRAFT")" == "$message" ]
 }
 
+@test "should print a proper callstack: print_call_stack()" {
+	:
+}
+
 @test "should return a valid semver tag starting with 'v' character: get_current_version_tag()" {
-	SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+	local SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
 	run get_current_version_tag
 	[[ "$output" =~ $SEMVER_REGEX ]]
 }
@@ -178,6 +184,6 @@ teardown() {
 #    Networking: Http
 # = = = = = = = = = = = =
 
-# @test "should download files with 'curl' and 'wget': download_file()" {
-
-# }
+@test "should download files with 'curl' and 'wget': download_file()" {
+	:
+}
