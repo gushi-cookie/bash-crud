@@ -22,29 +22,11 @@
 print_error() {
 	# Print an error message to the stderr stream.
 	# Arguments:
-	# 	A list of arguments that is combined into a
-	#   single string and printed then.
+	# 	A list of arguments that will be combined into
+	#		a single string and then printed.
 
 	printf "%s\\n" "$*" >&2
 }
-
-# print_call_stack() {
-# 	# Print a list of function calls that
-# 	# preceded this function call.
-# 	# Arguments:
-# 	#   $1 - Indentions size from the left in spaces.
-# 	# Returns:
-# 	#   The callstack list divided by new-line characters.
-
-
-# 	local indent=""
-# 	for ((i = 0; i < $1; i++)); do indent+=" "; done
-
-# 	for ((i = 0; i < ${#BASH_LINENO[@]}; i++)); do
-# 		[ $i -eq 0 ] && continue
-# 		printf "${indent}call '%s' at line %s\n" "${FUNCNAME[$i]}" "${BASH_LINENO[$i]}"
-# 	done
-# }
 
 get_current_version_tag() {
 	# Get a hardcoded version tag of the currently
@@ -65,7 +47,6 @@ includes_by_delimiter() {
 	# Returns:
 	#   0 - If the item is included.
 	#   1 - If the item is not included.
-
 
 	[[ " $(echo "$1" | tr "$2" " ") " == *" ${3} "* ]]
 	return $?
@@ -89,26 +70,6 @@ has_cmd() {
 	type "$1" > /dev/null 2>&1
 }
 
-# check_exit() {
-# 	# Check if a passed exit code is zero, otherwise
-# 	# terminate the script and print the callstack.
-# 	# Environments:
-# 	#   BC_TEST__
-# 	# Arguments:
-# 	#   $1 - The exit code to test.
-
-
-# 	[ "$1" -eq 0 ] && return 0
-
-# 	local stack;
-# 	stack="$(prepare_call_stack 2; echo -n .)"
-# 	stack="${stack%.}"
-
-# 	print_error "Unexpected exit code '$1' in the next callstack:"
-# 	printf "%s" "$stack" >&2
-
-# 	[ -z "${BC_TEST__DO_NOT_EXIT:-}" ] && exit 1
-# }
 
 # = = = = = = = = = = = = = = = =
 #    Managing: Required tools
@@ -276,7 +237,7 @@ make_get_request() {
 	fi
 
 	if [ "$downloader" == "curl" ]; then
-    curl -qfL --compressed "$url"
+    curl -qfsL --compressed "$url"
 		[ $? -ne 0 ] && return 1
   elif [ "$downloader" == "wget" ]; then
     wget -qO - "$url"
