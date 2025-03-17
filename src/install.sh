@@ -20,6 +20,7 @@
 # = = = = = = = = = =
 
 print_error() {
+	# [TO-DO]
 	# Print an error message to the stderr stream.
 	# Arguments:
 	# 	A list of arguments that will be combined into
@@ -29,6 +30,7 @@ print_error() {
 }
 
 get_current_version_tag() {
+	# [capturable]
 	# Get a hardcoded version tag of the currently
 	# supported or developed version.
 	# Returns:
@@ -38,6 +40,7 @@ get_current_version_tag() {
 }
 
 includes_by_delimiter() {
+	# [binary]
 	# Check if a list of strictly delimited values
 	# has an item with an exact value.
 	# Arguments:
@@ -53,13 +56,13 @@ includes_by_delimiter() {
 }
 
 has_cmd() {
+	# [binary]
 	# Check if a command is available on the current system.
 	# Arguments:
 	# 	$1 - The name of the command to check.
 	# Returns:
 	# 	0 - The command exists.
 	# 	1 - The command does not exist.
-
 
 	if includes_by_delimiter "${BC_TEST__PASS_COMMAND:-}" " " "$1"; then
 		return 0
@@ -76,7 +79,7 @@ has_cmd() {
 # = = = = = = = = = = = = = = = =
 
 get_architecture_for_jq() {
-	# $(..)
+	# [capturable]
 	# Get an architecture suffix for the 'jqlang/jq' tool,
 	# according to its ci.yml file and the current machine's
 	# architecture.
@@ -86,7 +89,6 @@ get_architecture_for_jq() {
 	# Returns:
 	#   An architecture suffix for the 'jq' tool.
 	#   Code 1 if the machine's architecture not supported.
-
 
 	case "$(uname -m)" in
 				 'x86_64') printf 'amd64';;
@@ -99,6 +101,7 @@ get_architecture_for_jq() {
 }
 
 establish_jq() {
+	# [control]
 	# Setup the 'jq' tool if it is not installed.
 
 	if has_cmd "jq"; then return 0; fi
@@ -113,12 +116,12 @@ establish_jq() {
 	download_file "$temp_path/jq" "$url"
 	[ $? -ne 0 ] && return 1
 
-	chmod 111 "$temp_path/jq"
-	[ $? -ne 0 ] && return 1
+	chmod 755 "$temp_path/jq"
+	[ $? -ne 0 ] && return 1 || return 0
 }
 
 get_downloader() {
-	# $(..)
+	# [capturable]
 	# Get a command name of the supported tool for
 	# making http requests.
 	# Environments:
@@ -132,7 +135,6 @@ get_downloader() {
 	# Returns:
 	# 	The appropriate downloader command name.
 
-
 	local -a commands=("curl" "wget")
 
 	for cmd in "${commands[@]}"; do
@@ -142,6 +144,11 @@ get_downloader() {
 			return 1
 		fi
 	done
+
+	if [ -n "${BASH_CRUD_DOWNLOADER:-}" ]; then
+		print_error "Selected downloader command '$BASH_CRUD_DOWNLOADER' not recognized."
+		return 1
+	fi
 
 	for cmd in "${commands[@]}"; do
 		if has_cmd "$cmd"; then printf %s "$cmd"; return 0; fi
@@ -157,6 +164,7 @@ get_downloader() {
 # = = = = = = = = = = = =
 
 download_file() {
+	# [control]
 	# Download a file using curl or wget. Query parameters
 	# may be passed as arguments after supplying required arguments.
 	# They get url encoded automatically.
@@ -166,7 +174,6 @@ download_file() {
 	#		$Q - The list of query parameters for the request.
 	# Examples:
 	# 	1) download_file /dev/null https..com "req=5" "delete=yes" "please=sir"
-
 
 	local downloader; downloader="$(get_downloader)"
 	[ $? -ne 0 ] && return 1
@@ -184,7 +191,7 @@ download_file() {
 		value="$(jq -nr --arg val "$value" '$val | @uri')"
 		[ $? -ne 0 ] && return 1
 
-		query_params="${query_params}&${key}=${value}"
+		query_params+="&${key}=${value}"
 	done
 	if [ -n "$query_params" ]; then
 		query_params="${query_params:1}"
@@ -193,15 +200,15 @@ download_file() {
 
   if [ "$downloader" == "curl" ]; then
 		curl -qf --compressed --progress-bar -o "$outfile" "$url"
-		[ $? -ne 0 ] && return 1
+		[ $? -ne 0 ] && return 1 || return 0
   elif [ "$downloader" == "wget" ]; then
 		wget --progress=bar -q -O "$outfile" "$url"
-		[ $? -ne 0 ] && return 1
+		[ $? -ne 0 ] && return 1 || return 0
 	fi
 }
 
 make_get_request() {
-	# $(..)
+	# [capturable]
 	# Make a GET request using curl or wget. Query parameters
 	# may be passed as arguments after supplying required arguments.
 	# They get url encoded automatically.
@@ -212,7 +219,6 @@ make_get_request() {
 	# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
 	# Returns(by print):
 	# 	The received response content.
-
 
 	local downloader; downloader="$(get_downloader)"
 	[ $? -ne 0 ] && return 1
@@ -229,7 +235,7 @@ make_get_request() {
 		value="$(jq -nr --arg val "$value" '$val | @uri')"
 		[ $? -ne 0 ] && return 1
 
-		query_params="${query_params}&${key}=${value}"
+		query_params+="&${key}=${value}"
 	done
 	if [ -n "$query_params" ]; then
 		query_params="${query_params:1}"
@@ -238,14 +244,15 @@ make_get_request() {
 
 	if [ "$downloader" == "curl" ]; then
     curl -qfsL --compressed "$url"
-		[ $? -ne 0 ] && return 1
+		[ $? -ne 0 ] && return 1 || return 0
   elif [ "$downloader" == "wget" ]; then
     wget -qO - "$url"
-		[ $? -ne 0 ] && return 1
+		[ $? -ne 0 ] && return 1 || return 0
 	fi
 }
 
 get_file_links_from_github_repo() {
+	# [capturable]
 	# Make a github API request to retrieve the content
 	# of a specified repository's directory. Then extract
 	# and return file links from that data.
@@ -257,7 +264,6 @@ get_file_links_from_github_repo() {
 	# Returns(by print):
 	# 	The list of file links from the repository.
 
-
 	# curl -GL --data-urlencode "ref=v0.1.0" "https://api.github.com/repos/gushi-cookie/bash-crud/contents/gawk"
 	printf ""
 }
@@ -268,13 +274,12 @@ get_file_links_from_github_repo() {
 # = = = = = = = = = = = = = = = = = = = =
 
 establish_temp_path() {
-	# $(..)
+	# [capturable]
 	# Prepare a directory in '/tmp' for temporary files
 	# of the current session and add that path to the
 	# PATH variable.
 	# Returns:
 	#   The valid path of the temporary directory.
-
 
 	local temp_path="/tmp/bash-crud"
 
@@ -291,7 +296,7 @@ establish_temp_path() {
 }
 
 establish_gawk_path() {
-	# $(..)
+	# [capturable]
 	# Prepare a child directory for gawk programs
 	# according to a value of the AWKPATH variable.
 	# Conditions:
@@ -300,12 +305,12 @@ establish_gawk_path() {
 	# Returns(by print):
 	#		A directory path for gawk programs.
 
-
 	local default_awkpath="/usr/share/awk"
 
 	local awk_path
 	awk_path="$(gawk 'BEGIN { len=split(ENVIRON["AWKPATH"], arr, ":"); printf "%s", arr[len] }')"
 	[ $? -ne 0 ] && return 1
+
 
 	local path="${awk_path:-$default_awkpath}/bash-crud"
 
@@ -315,20 +320,14 @@ establish_gawk_path() {
 	printf %s "$path"
 }
 
-# get_bin_dir() {
-# 	if [ -n "${BASH_CRUD_BIN_DIR:-}" ]; then
-# 		printf %s "$BASH_CRUD_BIN_DIR"
-# 	else
-# 		printf "/usr/local/bin"
-# 	fi
-# }
-
 
 # = = = = = = = = =
 #  Download links
 # = = = = = = = = =
 
 get_download_link() {
+	# [capturable]
+
 	local resource="$1"
 	local version_tag; version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
 	local github_repo="gushi-cookie/bash-crud"
@@ -350,8 +349,9 @@ get_download_link() {
 }
 
 install() {
-	local awk_path=establish_awk_path
-	local version_tag=get_current_version_tag
+	# [control]
 
-
+	# local awk_path=establish_awk_path
+	# local version_tag=get_current_version_tag
+	:
 }

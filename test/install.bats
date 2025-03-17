@@ -23,27 +23,15 @@ teardown() {
 	local message="ERROR MESSAGE TO PRINT"
 
 	print_error "$message" 2> "$BC_DRAFT"
-	[ "$?" -eq 0 ]
+	[ $? -eq 0 ]
 	[ "$(cat "$BC_DRAFT")" == "$message" ]
-}
-
-@test "should print in STDERR and exit with 1: print_error_and_exit()" {
-	local message="ERROR MESSAGE TO PRINT"
-
-	run print_error_and_exit "$message"
-	[ "$status" -eq 1 ]
-
-	print_error_and_exit "$message" 2> "$BC_DRAFT" || true
-	[ "$(cat "$BC_DRAFT")" == "$message" ]
-}
-
-@test "should print a proper callstack: print_call_stack()" {
-	:
 }
 
 @test "should return a valid semver tag starting with 'v' character: get_current_version_tag()" {
 	local SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
+
 	run get_current_version_tag
+	[[ "$status" -eq 0 ]]
 	[[ "$output" =~ $SEMVER_REGEX ]]
 }
 
@@ -100,20 +88,39 @@ teardown() {
 @test "should check if a command exists: has_cmd()" {
 	local fake_cmd="BC-not-even-a-command"
 
+
+	# Case 1
 	run has_cmd "bash"
 	[ "$status" -eq 0 ]
 
 	run has_cmd "$fake_cmd"
 	[ "$status" -eq 1 ]
 
-	# TO-DO - multiple pass/miss commands
+
+	# Case 2 - missing on purpose
 	export BC_TEST__MISS_COMMAND="bash"
 	run has_cmd "bash"
 	[ "$status" -eq 1 ]
 	unset BC_TEST__MISS_COMMAND
 
+	export BC_TEST__MISS_COMMAND="ls cd"
+	run has_cmd "ls"
+	[ "$status" -eq 1 ]
+	run has_cmd "cd"
+	[ "$status" -eq 1 ]
+	unset BC_TEST__MISS_COMMAND
+
+
+	# Case 3 - passing on purpose
 	export BC_TEST__PASS_COMMAND="$fake_cmd"
 	run has_cmd "$fake_cmd"
+	[ "$status" -eq 0 ]
+	unset BC_TEST__PASS_COMMAND
+
+	export BC_TEST__PASS_COMMAND="${fake_cmd}-A ${fake_cmd}-B"
+	run has_cmd "${fake_cmd}-A"
+	[ "$status" -eq 0 ]
+	run has_cmd "${fake_cmd}-B"
 	[ "$status" -eq 0 ]
 	unset BC_TEST__PASS_COMMAND
 }
@@ -139,23 +146,24 @@ teardown() {
 	# Case 2
 	export BC_TEST__MISS_COMMAND="jq"
 
-	local temp_path
-	temp_path="$(establish_temp_path)"
+	local jq_path; jq_path="$(establish_temp_path)/jq"
+	[ $? -eq 0 ]
 
 	run establish_jq
 	[ "$status" -eq 0 ]
-	[[ -f "${temp_path}/jq" && -x "${temp_path}/jq" ]]
+	[[ -f "${jq_path}" && -x "${jq_path}" ]]
 
-	run "${temp_path} --help"
+	run eval "${jq_path} --help"
 	[ "$status" -eq 0 ]
 
 	unset BC_TEST__MISS_COMMAND
 }
 
 @test "should return a proper downloader command: get_downloader()" {
-	# Case 1
-	for cmd in "curl" "wget"; do
-		printf %s "Item '${cmd}': " >&3
+	local -a commands=("curl" "wget")
+
+	for cmd in "${commands[@]}"; do
+		printf %s "   - Item '${cmd}': " >&3
 
 		export BASH_CRUD_DOWNLOADER="$cmd"
 
@@ -164,7 +172,7 @@ teardown() {
 		[[ "$status" -eq 0 && "$output" == "$cmd" ]]
 		unset BC_TEST__PASS_COMMAND
 
-		export BC_TEST__MISS_COMMAND="$cmd"
+		export BC_TEST__MISS_COMMAND="${commands[@]}"
 		run get_downloader
 		[ "$status" -eq 1 ]
 		unset BC_TEST__MISS_COMMAND
@@ -173,10 +181,6 @@ teardown() {
 	done
 
 	unset BASH_CRUD_DOWNLOADER
-
-
-	# Case 2
-	# TO-DO - `print_error_and_exit "Neither 'curl' nor 'wget' commands were found."`
 }
 
 
