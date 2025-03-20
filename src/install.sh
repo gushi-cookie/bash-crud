@@ -110,7 +110,7 @@ establish_jq() {
 	local temp_path; temp_path="$(establish_temp_path)"
 	[ $? -ne 0 ] && return 1
 
-	local url; url="$(get_download_link "jq")"
+	local url; url="$(get_resource_url "jq")"
 	[ $? -ne 0 ] && return 1
 
 	download_file "$temp_path/jq" "$url"
@@ -169,7 +169,7 @@ download_file() {
 	# may be passed as arguments after supplying required arguments.
 	# They get url encoded automatically.
 	# Arguments:
-	# 	$1 - The name of the output file that may include an absolute path.
+	# 	$1 - The name of the output file that may include an absolute path. TO-DO
 	# 	$2 - The URL of the request.
 	#		$Q - The list of query parameters for the request.
 	# Examples:
@@ -259,13 +259,28 @@ get_file_links_from_github_repo() {
 	# Arguments:
 	# 	$1 - The user name of the repository.
 	# 	$2 - The repository name.
-	# 	$3 - The release tag.
+	# 	$3 - The name of a commit/branch/tag.
 	# 	$4 - The directory path in the repository.
-	# Returns(by print):
+	# Returns:
 	# 	The list of file links from the repository.
 
-	# curl -GL --data-urlencode "ref=v0.1.0" "https://api.github.com/repos/gushi-cookie/bash-crud/contents/gawk"
-	printf ""
+	local username="$1"
+	local repo_name="$2"
+	local reference="$3"
+	local path="$4"
+
+	local url="https://api.github.com/repos/${username}/${repo_name}/contents/${path}"
+
+	local response;
+	if [ -n "$reference" ]; then
+		response="$(make_get_request "$url" "ref=${reference}")"
+	else
+		response="$(make_get_request "$url")"
+	fi
+	[ $? -ne 0 ] && return 1
+
+	jq -r '.[] | select(.type == "file") | .download_url' <<< "$response"
+	[ $? -ne 0 ] && return 1 || return 0
 }
 
 
@@ -320,28 +335,38 @@ establish_gawk_path() {
 	printf %s "$path"
 }
 
+establish_bin_path() {
+	# [capturable]
+
+	local default="/usr/local/bin"
+	printf %s "$default"
+}
+
 
 # = = = = = = = = =
 #  Download links
 # = = = = = = = = =
 
-get_download_link() {
+get_resource_url() {
 	# [capturable]
 
 	local resource="$1"
 	local version_tag; version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
-	local github_repo="gushi-cookie/bash-crud"
+	local username="gushi-cookie"
+	local repo_name="bash-crud"
+	local jq_release_tag="jq-1.7.1"
 
 	if [ "$resource" == "gawk" ]; then
-		printf %s "https://raw.githubusercontent.com/${github_repo}/${version_tag}/gawk"
-	elif [ "$resource" == "main" ]; then
-		printf %s "https://raw.githubusercontent.com/${github_repo}/${version_tag}/scripts/bash-crud.sh"
+		get_file_links_from_github_repo "$username" "$repo_name" "$version_tag" "src/gawk"
+		[ $? -ne 0 ] && return 1 || return 0
+	elif [ "$resource" == "bash-crud-script" ]; then
+		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/bash-crud.sh"
 	elif [ "$resource" == "install" ]; then
-		printf %s "https://raw.githubusercontent.com/${github_repo}/${version_tag}/scripts/install.sh"
+		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/install.sh"
 	elif [ "$resource" == "jq" ]; then
 		local machine; machine="$(get_architecture_for_jq)"
 		[ $? -ne 0 ] && return 1
-		printf %s "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${machine}"
+		printf %s "https://github.com/jqlang/jq/releases/download/${jq_release_tag}/jq-linux-${machine}"
 	else
 		print_error "Couldn't find a download link for resource type '${resource}'."
 		return 1
@@ -351,7 +376,45 @@ get_download_link() {
 install() {
 	# [control]
 
-	# local awk_path=establish_awk_path
-	# local version_tag=get_current_version_tag
-	:
+	# Checking required tools
+	establish_jq
+	[ $? -ne 0 ] && return 1
+
+
+	# Installing bash-crud.sh
+	local bin_path; bin_path="$(establish_bin_path)"
+	[ $? -ne 0 ] && return 1
+
+	local script_url; script_url="$(get_resource_url "bash-crud-script")"
+	[ $? -ne 0 ] && return 1
+
+	local response; response="$(make_get_request "$script_url")"
+	[ $? -ne 0 ] && return 1
+
+	local script_path="${bin_path}/bash-crud"
+	printf %s "$response" > "$script_path"
+	[ $? -ne 0 ] && return 1
+
+	chmod 755 "$script_path"
+	[ $? -ne 0 ] && return 1
+
+
+	# Installing gawk programs
+	local gawk_path; gawk_path="$(establish_gawk_path)"
+	[ $? -ne 0 ] && return 1
+
+	mapfile -t gawk_urls <<< "$(get_resource_url "gawk")"
+	[ $? -ne 0 ] && return 1
+
+	for url in "${gawk_urls[@]}"; do
+		download_file "$gawk_path" "$url"
+		[ $? -ne 0 ] && return 1
+	done
+
+	return 0
 }
+
+
+if [[ -z "${BC_TEST__TEST_ENVIRONMENT:-}" ]]; then
+	install
+fi
