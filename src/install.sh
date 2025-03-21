@@ -1,18 +1,36 @@
 #!/usr/bin/env bash
 
-# Used environments:
-# 	BASH_CRUD_DOWNLOADER
-#			Which network command should be used for
-#			downloading files and making http requests.
-#			Valid values: ["curl", "wget"]. Default: "curl".
-#   BC_TEST__PASS_COMMAND
-#     A space-separated list of command names that
-#     should be treated as an existing commands for
-#     testing purposes. Used by the has_cmd() function.
-#   BC_TEST__MISS_COMMAND
-#     A space-separated list of command names that
-#     should be treated as missing commands for testing
-#   	purposes. Used by the has_cmd() function.
+# = = = = = = = = = = = =
+# Supported environments
+# = = = = = = = = = = = =
+# AWKPATH
+# - A path for installing gawk programs.
+# - Syntax rules: same as for PATH.
+#
+# BASH_CRUD_DOWNLOADER
+# - A network command name for making http
+#   requests.
+# - Valid values: ["curl", "wget"]. Default: "curl".
+#
+# BASH_CRUD_INSTALL_VERSION
+# - One of the valid version tags of this repository.
+#   Represents the version to install.
+# - Default: 'get_current_version_tag()'
+#
+# BC_TEST__PASS_COMMAND
+# - A space-separated list of command names that
+#   should be treated as existing commands for
+#   testing purposes.
+#
+# BC_TEST__MISS_COMMAND
+# - A space-separated list of command names that
+#   should be treated as missing commands for testing
+#   purposes.
+#
+# BC_TEST__TEST_ENVIRONMENT
+# - Indicates whether the script is started for testing
+#   purposes.
+# - Valid values: unset for false, any value for true.
 
 
 # = = = = = = = = = =
@@ -20,19 +38,19 @@
 # = = = = = = = = = =
 
 print_error() {
-	# [TO-DO]
+	# [logger]
 	# Print an error message to the stderr stream.
 	# Arguments:
-	# 	A list of arguments that will be combined into
-	#		a single string and then printed.
+	#   A list of arguments that will be concatenated
+	#   into a single string and then printed.
 
 	printf "%s\\n" "$*" >&2
 }
 
 get_current_version_tag() {
 	# [capturable]
-	# Get a hardcoded version tag of the currently
-	# supported or developed version.
+	# Get a version tag of the
+	# currently supported version.
 	# Returns:
 	#   The version tag.
 
@@ -41,10 +59,11 @@ get_current_version_tag() {
 
 includes_by_delimiter() {
 	# [binary]
-	# Check if a list of strictly delimited values
-	# has an item with an exact value.
+	# Check if a strictly delimited list of values
+	# contains an item. The list is represented by
+	# a string value.
 	# Arguments:
-	#   $1 - The list of delimited values.
+	#   $1 - The list of values.
 	#   $2 - The delimiter.
 	#   $3 - The value to check.
 	# Returns:
@@ -80,15 +99,11 @@ has_cmd() {
 
 get_architecture_for_jq() {
 	# [capturable]
-	# Get an architecture suffix for the 'jqlang/jq' tool,
-	# according to its ci.yml file and the current machine's
+	# Get an architecture suffix for the jqlang/jq tool,
+	# based on its ci.yml file and the current machine's
 	# architecture.
-	# Conditions:
-	#		The script exits with an error if the machine's
-	#		architecture not supported/listed.
 	# Returns:
-	#   An architecture suffix for the 'jq' tool.
-	#   Code 1 if the machine's architecture not supported.
+	#   The architecture suffix supported by the 'jq' tool.
 
 	case "$(uname -m)" in
 				 'x86_64') printf 'amd64';;
@@ -102,7 +117,7 @@ get_architecture_for_jq() {
 
 establish_jq() {
 	# [control]
-	# Setup the 'jq' tool if it is not installed.
+	# Install the 'jq' tool if it's not present on the system.
 
 	if has_cmd "jq"; then return 0; fi
 	printf "Command 'jq' not found. Downloading it for the current session..\n"
@@ -122,18 +137,10 @@ establish_jq() {
 
 get_downloader() {
 	# [capturable]
-	# Get a command name of the supported tool for
-	# making http requests.
-	# Environments:
-	# 	BASH_CRUD_DOWNLOADER - force to use a specific command.
-	#		Valid values are 'curl' and 'wget'.
-	# Conditions:
-	# 	If BASH_CRUD_DOWNLOADER is invalid or the supplied
-	#		command not found - exits with an error.
-	#		If none of supported commands found - exits
-	#		with an error.
+	# Get the name of a command supported by the
+	# script for making network/http requests.
 	# Returns:
-	# 	The appropriate downloader command name.
+	# 	The command name.
 
 	local -a commands=("curl" "wget")
 
@@ -165,22 +172,28 @@ get_downloader() {
 
 download_file() {
 	# [control]
-	# Download a file using curl or wget. Query parameters
-	# may be passed as arguments after supplying required arguments.
-	# They get url encoded automatically.
+	# Download a file using one of the supported network commands.
+	# Query parameters may be passed as additional arguments.
+	# Values of query parameters are encoded automatically.
 	# Arguments:
-	# 	$1 - The name of the output file that may include an absolute path. TO-DO
+	# 	$1 - The output path to a file or directory. If the path
+	#        ends with '/' sign, it is treated as a directory.
 	# 	$2 - The URL of the request.
 	#		$Q - The list of query parameters for the request.
 	# Examples:
-	# 	1) download_file /dev/null https..com "req=5" "delete=yes" "please=sir"
+	#   download_file /dev/null/my_file "https..com" "req=5" "delete=yes" "please=sir"
+	#   download_file search.html "https://google.com"
+	#   download_file ~/output_dir/ "https://api.github.com/.."
 
 	local downloader; downloader="$(get_downloader)"
 	[ $? -ne 0 ] && return 1
 
-	local outfile="$1"
+	local outpath="$1"
 	local url="$2"
 	shift 2
+
+	[[ "$outpath" =~ /$ ]]
+	local output_to_dir=$?
 
 	local query_params=""
 	while [[ $# -gt 0 ]]; do
@@ -199,26 +212,35 @@ download_file() {
 	fi
 
   if [ "$downloader" == "curl" ]; then
-		curl -qf --compressed --progress-bar -o "$outfile" "$url"
+		if [ "$output_to_dir" -eq 0 ]; then
+			curl -qf --compressed --progress-bar -O --output-dir "$outpath" "$url"
+		else
+			curl -qf --compressed --progress-bar -o "$outpath" "$url"
+		fi
 		[ $? -ne 0 ] && return 1 || return 0
   elif [ "$downloader" == "wget" ]; then
-		wget --progress=bar -q -O "$outfile" "$url"
+		if [ "$output_to_dir" -eq 0 ]; then
+			wget --progress=bar -q -P "$outpath" "$url"
+		else
+			wget --progress=bar -q -O "$outpath" "$url"
+		fi
 		[ $? -ne 0 ] && return 1 || return 0
 	fi
 }
 
 make_get_request() {
 	# [capturable]
-	# Make a GET request using curl or wget. Query parameters
-	# may be passed as arguments after supplying required arguments.
-	# They get url encoded automatically.
+	# Make a GET request using one of the supported network commands.
+	# Query parameters may be passed as additional arguments.
+	# Values of query parameters are encoded automatically.
 	# Arguments:
 	# 	$1 - The URL of the request.
 	#		$Q - The list of query parameters for the request.
 	# Examples:
-	# 	1) download_file /dev/null https..com "req=5" "delete=yes please=sir"
-	# Returns(by print):
-	# 	The received response content.
+	#   make_get_request "https..com" "req=5" "delete=yes"
+	#   make_get_request "https://www.google.com/search" "q=How to swim?"
+	# Returns:
+	# 	The received response content on success.
 
 	local downloader; downloader="$(get_downloader)"
 	[ $? -ne 0 ] && return 1
@@ -262,7 +284,8 @@ get_file_links_from_github_repo() {
 	# 	$3 - The name of a commit/branch/tag.
 	# 	$4 - The directory path in the repository.
 	# Returns:
-	# 	The list of file links from the repository.
+	#   The list of file URLs from the repository.
+	#   Items are separated by newline characters.
 
 	local username="$1"
 	local repo_name="$2"
@@ -290,11 +313,11 @@ get_file_links_from_github_repo() {
 
 establish_temp_path() {
 	# [capturable]
-	# Prepare a directory in '/tmp' for temporary files
-	# of the current session and add that path to the
-	# PATH variable.
+	# Create a special directory in '/tmp' for temporary
+	# files used in the current session and add its
+	# path to the PATH variable.
 	# Returns:
-	#   The valid path of the temporary directory.
+	#   The path to the temporary directory.
 
 	local temp_path="/tmp/bash-crud"
 
@@ -312,13 +335,12 @@ establish_temp_path() {
 
 establish_gawk_path() {
 	# [capturable]
-	# Prepare a child directory for gawk programs
-	# according to a value of the AWKPATH variable.
+	# Prepare a directory for installing gawk programs.
 	# Conditions:
-	# 	If AWKPATH has multiple paths then the last one is used.
+	# 	If AWKPATH contains multiple paths then the last one is used.
 	# 	If AWKPATH is unset then 'default_awkpath' is used.
-	# Returns(by print):
-	#		A directory path for gawk programs.
+	# Returns:
+	#		The directory path for placing the project's gawk programs.
 
 	local default_awkpath="/usr/share/awk"
 
@@ -337,6 +359,9 @@ establish_gawk_path() {
 
 establish_bin_path() {
 	# [capturable]
+	# Prepare a directory for installing the project's executables.
+	# Returns:
+	#   The directory path for executables.
 
 	local default="/usr/local/bin"
 	printf %s "$default"
@@ -407,7 +432,7 @@ install() {
 	[ $? -ne 0 ] && return 1
 
 	for url in "${gawk_urls[@]}"; do
-		download_file "$gawk_path" "$url"
+		download_file "${gawk_path}/" "$url"
 		[ $? -ne 0 ] && return 1
 	done
 
