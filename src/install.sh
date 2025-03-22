@@ -33,9 +33,9 @@
 # - Valid values: unset for false, any value for true.
 
 
-# = = = = = = = = = =
-#     Utilities
-# = = = = = = = = = =
+# = = = = = = = = = = = = =
+#     Common Utilities
+# = = = = = = = = = = = = =
 
 print_error() {
 	# [logger]
@@ -54,7 +54,7 @@ get_current_version_tag() {
 	# Returns:
 	#   The version tag.
 
-	printf "v0.1.0"
+	printf "v0.2.0"
 }
 
 includes_by_delimiter() {
@@ -166,9 +166,35 @@ get_downloader() {
 }
 
 
-# = = = = = = = = = = = =
-#    Networking: Http
-# = = = = = = = = = = = =
+# = = = = = = = = = = = = = = = =
+#    Managing: Http requests
+# = = = = = = = = = = = = = = = =
+
+get_resource_url() {
+	# [capturable]
+
+	local resource="$1"
+	local version_tag; version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
+	local username="gushi-cookie"
+	local repo_name="bash-crud"
+	local jq_release_tag="jq-1.7.1"
+
+	if [ "$resource" == "gawk" ]; then
+		get_file_links_from_github_repo "$username" "$repo_name" "$version_tag" "src/gawk"
+		[ $? -ne 0 ] && return 1 || return 0
+	elif [ "$resource" == "bash-crud-script" ]; then
+		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/bash-crud.sh"
+	elif [ "$resource" == "install" ]; then
+		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/install.sh"
+	elif [ "$resource" == "jq" ]; then
+		local machine; machine="$(get_architecture_for_jq)"
+		[ $? -ne 0 ] && return 1
+		printf %s "https://github.com/jqlang/jq/releases/download/${jq_release_tag}/jq-linux-${machine}"
+	else
+		print_error "Couldn't find a download link for resource type '${resource}'."
+		return 1
+	fi
+}
 
 download_file() {
 	# [control]
@@ -281,7 +307,8 @@ get_file_links_from_github_repo() {
 	# Arguments:
 	# 	$1 - The user name of the repository.
 	# 	$2 - The repository name.
-	# 	$3 - The name of a commit/branch/tag.
+	# 	$3 - The name of a commit/branch/tag. Pass
+	#        an empty string to omit.
 	# 	$4 - The directory path in the repository.
 	# Returns:
 	#   The list of file URLs from the repository.
@@ -308,7 +335,7 @@ get_file_links_from_github_repo() {
 
 
 # = = = = = = = = = = = = = = = = = = = =
-#      Managing: Envs & File System
+#     Managing: Environments & Paths
 # = = = = = = = = = = = = = = = = = = = =
 
 establish_temp_path() {
@@ -368,35 +395,9 @@ establish_bin_path() {
 }
 
 
-# = = = = = = = = =
-#  Download links
-# = = = = = = = = =
-
-get_resource_url() {
-	# [capturable]
-
-	local resource="$1"
-	local version_tag; version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
-	local username="gushi-cookie"
-	local repo_name="bash-crud"
-	local jq_release_tag="jq-1.7.1"
-
-	if [ "$resource" == "gawk" ]; then
-		get_file_links_from_github_repo "$username" "$repo_name" "$version_tag" "src/gawk"
-		[ $? -ne 0 ] && return 1 || return 0
-	elif [ "$resource" == "bash-crud-script" ]; then
-		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/bash-crud.sh"
-	elif [ "$resource" == "install" ]; then
-		printf %s "https://raw.githubusercontent.com/${username}/${repo_name}/${version_tag}/scripts/install.sh"
-	elif [ "$resource" == "jq" ]; then
-		local machine; machine="$(get_architecture_for_jq)"
-		[ $? -ne 0 ] && return 1
-		printf %s "https://github.com/jqlang/jq/releases/download/${jq_release_tag}/jq-linux-${machine}"
-	else
-		print_error "Couldn't find a download link for resource type '${resource}'."
-		return 1
-	fi
-}
+# = = = = = = = = = = =
+#   The Main Section
+# = = = = = = = = = = =
 
 install() {
 	# [control]
@@ -438,7 +439,6 @@ install() {
 
 	return 0
 }
-
 
 if [[ -z "${BC_TEST__TEST_ENVIRONMENT:-}" ]]; then
 	install

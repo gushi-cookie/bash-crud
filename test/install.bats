@@ -1,8 +1,11 @@
 #!/usr/bin/env bats
 
 setup() {
+	BC_TEST__TEST_ENVIRONMENT="true"
+
 	BC_TMP_DIR="/tmp/bash-crud-bats"
 	BC_DRAFT="${BC_TMP_DIR}/draft"
+	BC_GITHUB="https://github.com/gushi-cookie/bash-crud"
 
 	mkdir -p "$BC_TMP_DIR"
 	touch "$BC_DRAFT"
@@ -15,9 +18,9 @@ teardown() {
 }
 
 
-# = = = = = = = = = =
-#     Utilities
-# = = = = = = = = = =
+# = = = = = = = = = = = = =
+#     Common Utilities
+# = = = = = = = = = = = = =
 
 @test "should print in STDERR: print_error()" {
 	local message="ERROR MESSAGE TO PRINT"
@@ -35,7 +38,7 @@ teardown() {
 	[[ "$output" =~ $SEMVER_REGEX ]]
 }
 
-@test "should check if a string is included in a list: includes_by_delimiter()" {
+@test "should check if a list contains an item: includes_by_delimiter()" {
 	# Case 1
 	local list="A B C D EFG"
 
@@ -130,7 +133,7 @@ teardown() {
 #    Managing: Required tools
 # = = = = = = = = = = = = = = = =
 
-@test "should exit successfully: get_architecture_for_jq()" {
+@test "should exit with a success: get_architecture_for_jq()" {
 	run get_architecture_for_jq
 	[ "$status" -eq 0 ]
 }
@@ -177,17 +180,152 @@ teardown() {
 		[ "$status" -eq 1 ]
 		unset BC_TEST__MISS_COMMAND
 
-		printf "%s\n" "OK" >&3
+		printf "OK\n" >&3
 	done
 
 	unset BASH_CRUD_DOWNLOADER
 }
 
 
-# = = = = = = = = = = = =
-#    Networking: Http
-# = = = = = = = = = = = =
+# = = = = = = = = = = = = = = = =
+#    Managing: Http requests
+# = = = = = = = = = = = = = = = =
 
-@test "should download files with 'curl' and 'wget': download_file()" {
+@test "should return correct resources: get_resource_url()" {
+	local -a resources=("gawk" "bash-crud-script" "install" "jq")
+
+	# Case 1
+	run get_resource_url "Unknown_resource"
+	[ "$status" -eq 1 ]
+
+	# Case 2
+	export BASH_CRUD_DOWNLOADER="curl"
+	printf "   Curl:\n" >&3
+	for resource in "${resources[@]}"; do
+		printf %s "   - Item '${resource}': " >&3
+		run get_resource_url "$resource"
+		[ "$status" -eq 0 ]
+		printf "OK\n" >&3
+	done
+
+	# Case 3
+	printf "   Wget:\n" >&3
+	export BASH_CRUD_DOWNLOADER="wget"
+	for resource in "${resources[@]}"; do
+		run get_resource_url "$resource"
+		[ "$status" -eq 0 ]
+	done
+
+	unset BASH_CRUD_DOWNLOADER
+}
+
+@test "should download files: download_file()" {
+	local file="install.bats"
+	local url="${BC_GITHUB}/test/${file}"
+	local tag="v0.2.0"
+	local tag_checksum="TO-DO"
+
+	for cmd in "curl" "wget"; do
+		export BASH_CRUD_DOWNLOADER="$cmd"
+
+		# Case 1: into a directory
+		run download_file "${BC_TMP_DIR}/" "$url"
+		[ "$status" -eq 0 ]
+		[[ -s "${BC_TMP_DIR}/${file}" ]]
+
+		# Case 2: into a file
+		run download_file "${BC_TMP_DIR}/test_file" "$url"
+		[ "$status" -eq 0 ]
+		[[ "${BC_TMP_DIR}/${file}" -ef "${BC_TMP_DIR}/test_file" ]]
+		rm "${BC_TMP_DIR}/${file}" "${BC_TMP_DIR}/test_file"
+
+		# Case 3: with query parameters
+		run download_file "${BC_TMP_DIR}/test_file" "$url" "ref=${tag}"
+		[ "$status" -eq 0 ]
+		[ "$(sha256sum "${BC_TMP_DIR}/test_file")" == "$tag_checksum" ]
+		rm "${BC_TMP_DIR}/test_file"
+	done
+
+	unset BASH_CRUD_DOWNLOADER
+}
+
+@test "should make http GET requests: make_get_request()" {
+	local url="${BC_GITHUB}/test/install.bats"
+	local tag="v0.2.0"
+	local tag_checksum="TO-DO"
+	local checksum=""
+
+	for cmd in "curl" "wget"; do
+		export BASH_CRUD_DOWNLOADER="$cmd"
+
+		# Case 1: primitive request
+		run make_get_request "$url"
+		[ "$status" -eq 0 ]
+
+		# Case 2: with query parameters
+		run make_get_request "$url" "ref=${tag}"
+		[ "$status" -eq 0 ]
+		checksum="$(printf %s "$output" | sha256sum | cut -d ' ' -f 1)"
+		[ "$checksum" == "$tag_checksum" ]
+	done
+
+	unset BASH_CRUD_DOWNLOADER
+}
+
+@test "should resolve file links: get_file_links_from_github_repo()" {
+	local username="gushi-cookie"
+	local repo_name="bash-crud"
+	local tag="v0.2.0"
+	local path="src/gawk"
+
+	# Case 1: without a tag
+	run get_file_links_from_github_repo "$username" "$repo_name" "" ""
+	[ "$status" -eq 0 ]
+	[ "$(printf %s "$output" | wc -l)" -gt 1 ]
+
+	# Case 2: with a tag
+	run get_file_links_from_github_repo "$username" "$repo_name" "$tag" "$path"
+	[ "$status" -eq 0 ]
+	[ "$(printf %s "$output" | wc -l)" -eq 4 ]
+}
+
+
+# = = = = = = = = = = = = = = = = = = = =
+#     Managing: Environments & Paths
+# = = = = = = = = = = = = = = = = = = = =
+
+@test "should prepare a temporary directory: establish_temp_path()" {
+	run establish_temp_path
+	[ "$status" -eq 0 ]
+	[ -d "$output" ]
+	[[ "$PATH" =~ "$output" ]]
+}
+
+@test "should return the path: establish_gawk_path()" {
+	# Case 1
+	run establish_gawk_path
+	[[ "$status" -eq 0 && -n "$output" ]]
+
+	# Case 2
+	export AWKPATH="/some/random/path"
+	run establish_gawk_path
+	[ "$status" -eq 0 ]
+	[ "$output" == "$AWKPATH" ]
+	unset AWKPATH
+}
+
+@test "should return the path: establish_bin_path()" {
+	run establish_bin_path
+	[ "$status" -eq 0 ]
+	[ -n "$output" ]
+}
+
+
+# = = = = = = = = = = =
+#   The Main Section
+# = = = = = = = = = = =
+
+@test "should install: install()" {
 	:
+	# to-do
 }
