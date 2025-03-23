@@ -1,19 +1,24 @@
 #!/usr/bin/env bats
 
 setup() {
-	BC_TEST__TEST_ENVIRONMENT="true"
-
+	# Preparing session files.
 	BC_TMP_DIR="/tmp/bash-crud-bats"
 	BC_DRAFT="${BC_TMP_DIR}/draft"
-	BC_GITHUB="https://github.com/gushi-cookie/bash-crud"
-
 	mkdir -p "$BC_TMP_DIR"
 	touch "$BC_DRAFT"
 
+	# URLs for testing.
+	BC_GITHUB_MAIN="https://raw.githubusercontent.com/gushi-cookie/bash-crud/refs/heads/main"
+	BC_TARGET_TAG="v0.2.0"
+	BC_GITHUB_TAGGED="https://raw.githubusercontent.com/gushi-cookie/bash-crud/refs/tags/${BC_TARGET_TAG}"
+
+	# Importing the script for testing.
+	BC_TEST__TEST_ENVIRONMENT="true"
 	source ./src/install.sh
 }
 
 teardown() {
+	# Removing files of the current session.
 	rm -rf "${BC_TMP_DIR}/*" "${BC_TMP_DIR}/.*"
 }
 
@@ -22,15 +27,14 @@ teardown() {
 #     Common Utilities
 # = = = = = = = = = = = = =
 
-@test "should print in STDERR: print_error()" {
+@test "should print to STDERR: print_error()" {
 	local message="ERROR MESSAGE TO PRINT"
 
 	print_error "$message" 2> "$BC_DRAFT"
-	[ $? -eq 0 ]
 	[ "$(cat "$BC_DRAFT")" == "$message" ]
 }
 
-@test "should return a valid semver tag starting with 'v' character: get_current_version_tag()" {
+@test "should return a valid semver tag starting with the 'v' character: get_current_version_tag()" {
 	local SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$"
 
 	run get_current_version_tag
@@ -133,7 +137,7 @@ teardown() {
 #    Managing: Required tools
 # = = = = = = = = = = = = = = = =
 
-@test "should exit with a success: get_architecture_for_jq()" {
+@test "should exit successfully: get_architecture_for_jq()" {
 	run get_architecture_for_jq
 	[ "$status" -eq 0 ]
 }
@@ -149,8 +153,8 @@ teardown() {
 	# Case 2
 	export BC_TEST__MISS_COMMAND="jq"
 
-	local jq_path; jq_path="$(establish_temp_path)/jq"
-	[ $? -eq 0 ]
+	local jq_path
+	jq_path="$(establish_temp_path)/jq"
 
 	run establish_jq
 	[ "$status" -eq 0 ]
@@ -200,20 +204,22 @@ teardown() {
 
 	# Case 2
 	export BASH_CRUD_DOWNLOADER="curl"
-	printf "   Curl:\n" >&3
+	printf "     With curl:\n" >&3
 	for resource in "${resources[@]}"; do
-		printf %s "   - Item '${resource}': " >&3
+		printf %s "     - Item '${resource}': " >&3
 		run get_resource_url "$resource"
 		[ "$status" -eq 0 ]
 		printf "OK\n" >&3
 	done
 
 	# Case 3
-	printf "   Wget:\n" >&3
+	printf "     With wget:\n" >&3
 	export BASH_CRUD_DOWNLOADER="wget"
 	for resource in "${resources[@]}"; do
+		printf %s "     - Item '${resource}': " >&3
 		run get_resource_url "$resource"
 		[ "$status" -eq 0 ]
+		printf "OK\n" >&3
 	done
 
 	unset BASH_CRUD_DOWNLOADER
@@ -221,72 +227,73 @@ teardown() {
 
 @test "should download files: download_file()" {
 	local file="install.bats"
-	local url="${BC_GITHUB}/test/${file}"
-	local tag="v0.2.0"
-	local tag_checksum="TO-DO"
+	local tagged_file_checksum="f72fb63c1ae61e9cf6782315470566095950a993a56948c407312c409d322395"
 
 	for cmd in "curl" "wget"; do
+		printf "   - Item '%s': " "$cmd" >&3
 		export BASH_CRUD_DOWNLOADER="$cmd"
 
 		# Case 1: into a directory
-		run download_file "${BC_TMP_DIR}/" "$url"
+		run download_file "${BC_TMP_DIR}/" "${BC_GITHUB_MAIN}/test/${file}"
 		[ "$status" -eq 0 ]
-		[[ -s "${BC_TMP_DIR}/${file}" ]]
+		[ -s "${BC_TMP_DIR}/${file}" ]
 
 		# Case 2: into a file
-		run download_file "${BC_TMP_DIR}/test_file" "$url"
+		run download_file "${BC_TMP_DIR}/test_file" "${BC_GITHUB_MAIN}/test/${file}"
 		[ "$status" -eq 0 ]
-		[[ "${BC_TMP_DIR}/${file}" -ef "${BC_TMP_DIR}/test_file" ]]
+		cmp -s "${BC_TMP_DIR}/${file}" "${BC_TMP_DIR}/test_file"
 		rm "${BC_TMP_DIR}/${file}" "${BC_TMP_DIR}/test_file"
 
 		# Case 3: with query parameters
-		run download_file "${BC_TMP_DIR}/test_file" "$url" "ref=${tag}"
+		run download_file "${BC_TMP_DIR}/test_file" "${BC_GITHUB_TAGGED}/test/${file}"
 		[ "$status" -eq 0 ]
-		[ "$(sha256sum "${BC_TMP_DIR}/test_file")" == "$tag_checksum" ]
+		[ "$tagged_file_checksum" == "$(sha256sum "${BC_TMP_DIR}/test_file" | cut -d ' ' -f 1)" ]
 		rm "${BC_TMP_DIR}/test_file"
+
+		printf "OK\n" >&3
 	done
 
 	unset BASH_CRUD_DOWNLOADER
 }
 
-@test "should make http GET requests: make_get_request()" {
-	local url="${BC_GITHUB}/test/install.bats"
-	local tag="v0.2.0"
-	local tag_checksum="TO-DO"
-	local checksum=""
+@test "should make HTTP GET requests: make_get_request()" {
+	local file="install.bats"
+	local tagged_file_checksum="f72fb63c1ae61e9cf6782315470566095950a993a56948c407312c409d322395"
 
 	for cmd in "curl" "wget"; do
+		printf "   - Item '%s': " "$cmd" >&3
 		export BASH_CRUD_DOWNLOADER="$cmd"
 
-		# Case 1: primitive request
-		run make_get_request "$url"
+		# Case 1: regular request
+		run make_get_request "${BC_GITHUB_MAIN}/test/${file}"
 		[ "$status" -eq 0 ]
 
 		# Case 2: with query parameters
-		run make_get_request "$url" "ref=${tag}"
+		run make_get_request "${BC_GITHUB_TAGGED}/test/${file}"
 		[ "$status" -eq 0 ]
-		checksum="$(printf %s "$output" | sha256sum | cut -d ' ' -f 1)"
-		[ "$checksum" == "$tag_checksum" ]
+		[ "$tagged_file_checksum" == "$(printf %s "$output" | sha256sum | cut -d ' ' -f 1)" ]
+
+		printf "OK\n" >&3
 	done
 
 	unset BASH_CRUD_DOWNLOADER
 }
 
 @test "should resolve file links: get_file_links_from_github_repo()" {
+	# Note: run helper strips all trailing newline characters.
 	local username="gushi-cookie"
 	local repo_name="bash-crud"
-	local tag="v0.2.0"
 	local path="src/gawk"
 
 	# Case 1: without a tag
 	run get_file_links_from_github_repo "$username" "$repo_name" "" ""
 	[ "$status" -eq 0 ]
-	[ "$(printf %s "$output" | wc -l)" -gt 1 ]
+	[ "$(printf "%s\n" "$output" | wc -l)" -ge 2 ]
 
 	# Case 2: with a tag
-	run get_file_links_from_github_repo "$username" "$repo_name" "$tag" "$path"
+	run get_file_links_from_github_repo "$username" "$repo_name" "${BC_TARGET_TAG}" "$path"
 	[ "$status" -eq 0 ]
-	[ "$(printf %s "$output" | wc -l)" -eq 4 ]
+	[ "$(printf "%s\n" "$output" | wc -l)" -eq 4 ]
 }
 
 
@@ -294,27 +301,51 @@ teardown() {
 #     Managing: Environments & Paths
 # = = = = = = = = = = = = = = = = = = = =
 
-@test "should prepare a temporary directory: establish_temp_path()" {
-	run establish_temp_path
-	[ "$status" -eq 0 ]
-	[ -d "$output" ]
-	[[ "$PATH" =~ "$output" ]]
+@test "should append new paths: append_path_variable()" {
+	local original_path="$PATH"
+	local path1="/i/love/bash-crud"
+	local path2="/another/random/path"
+
+	# Case 1: 1,2
+	append_path_variable "${path1} ${path2}"
+	[ "$PATH" == "${original_path}:${path1}:${path2}" ]
+	PATH="$original_path"
+
+	# Case 2: 1,1,1
+	append_path_variable "${path1} ${path1} ${path1}"
+	[ "$PATH" == "${original_path}:${path1}" ]
+	PATH="$original_path"
+
+	# Case 3: none
+	append_path_variable ""
+	[ "$PATH" == "${original_path}" ]
+
+	# Case 4: 1,1,2,1,1,2,2
+	append_path_variable "${path1} ${path1} ${path2} ${path1} ${path1} ${path2} ${path2}"
+	[ "$PATH" == "${original_path}:${path1}:${path2}" ]
+	PATH="$original_path"
 }
 
-@test "should return the path: establish_gawk_path()" {
+@test "should prepare a temporary directory: establish_temp_path()" {
+	run establish_temp_path
+	[ -d "$output" ]
+}
+
+@test "should return a valid path: establish_gawk_path()" {
 	# Case 1
 	run establish_gawk_path
-	[[ "$status" -eq 0 && -n "$output" ]]
+	[ "$status" -eq 0 ]
+	[ -n "$output" ]
 
 	# Case 2
-	export AWKPATH="/some/random/path"
+	export AWKPATH="${BC_TMP_DIR}/gawk"
 	run establish_gawk_path
 	[ "$status" -eq 0 ]
-	[ "$output" == "$AWKPATH" ]
+	[ "$output" == "${AWKPATH}/bash-crud" ]
 	unset AWKPATH
 }
 
-@test "should return the path: establish_bin_path()" {
+@test "should return a valid path: establish_bin_path()" {
 	run establish_bin_path
 	[ "$status" -eq 0 ]
 	[ -n "$output" ]

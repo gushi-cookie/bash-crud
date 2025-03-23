@@ -174,10 +174,13 @@ get_resource_url() {
 	# [capturable]
 
 	local resource="$1"
-	local version_tag; version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
 	local username="gushi-cookie"
 	local repo_name="bash-crud"
 	local jq_release_tag="jq-1.7.1"
+
+	local version_tag
+	version_tag="${BASH_CRUD_INSTALL_VERSION:-$(get_current_version_tag)}"
+	[ $? -ne 0 ] && return 1
 
 	if [ "$resource" == "gawk" ]; then
 		get_file_links_from_github_repo "$username" "$repo_name" "$version_tag" "src/gawk"
@@ -338,11 +341,22 @@ get_file_links_from_github_repo() {
 #     Managing: Environments & Paths
 # = = = = = = = = = = = = = = = = = = = =
 
+append_path_variable() {
+	# [control]
+	# Append new paths to the PATH variable.
+	# Arguments:
+	#   $1 - The list of space-separated paths to append.
+
+	for item in $1; do
+		if includes_by_delimiter "$PATH" ":" "$item"; then continue; fi
+		PATH+=":$item"
+	done
+}
+
 establish_temp_path() {
 	# [capturable]
 	# Create a special directory in '/tmp' for temporary
-	# files used in the current session and add its
-	# path to the PATH variable.
+	# files used during the installation process.
 	# Returns:
 	#   The path to the temporary directory.
 
@@ -351,10 +365,6 @@ establish_temp_path() {
 	if [ ! -d "$temp_path" ]; then
 		mkdir -p "$temp_path"
 		[ $? -ne 0 ] && return 1
-	fi
-
-	if [[ ! "$PATH" =~ $temp_path ]]; then
-		PATH="$PATH:$temp_path"
 	fi
 
 	printf %s "$temp_path"
@@ -374,7 +384,6 @@ establish_gawk_path() {
 	local awk_path
 	awk_path="$(gawk 'BEGIN { len=split(ENVIRON["AWKPATH"], arr, ":"); printf "%s", arr[len] }')"
 	[ $? -ne 0 ] && return 1
-
 
 	local path="${awk_path:-$default_awkpath}/bash-crud"
 
