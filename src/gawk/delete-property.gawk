@@ -1,7 +1,7 @@
 BEGIN {
   FS = "="
   should_exit = 0
-  has_key_occurred = 0
+  has_key_matched = 0
 
   if (ARGC < 2 + 1) {
     should_exit = 1
@@ -17,16 +17,16 @@ BEGIN {
   }
 }
 
-$0 != /^#/ {
-  if(key != $1) {
-    print
+$0 != /^\s*#/ {
+  if(key == $1) {
+    has_key_matched = 1
   } else {
-    has_key_occurred = 1
+    print $0
   }
 }
 
 END {
-  if(!should_exit && !has_key_occurred) {
+  if(!should_exit && !has_key_matched) {
     should_exit = 1
     printf "Property '%s' not found.", key > "/dev/stderr"
     exit 2

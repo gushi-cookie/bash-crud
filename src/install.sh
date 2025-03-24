@@ -70,7 +70,7 @@ includes_by_delimiter() {
 	#   0 - If the item is included.
 	#   1 - If the item is not included.
 
-	[[ " $(echo "$1" | tr "$2" " ") " == *" ${3} "* ]]
+	[[ " $(echo -n "$1" | tr "$2" " ") " == *" ${3} "* ]]
 	return $?
 }
 

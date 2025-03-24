@@ -3,11 +3,11 @@
 BEGIN {
   FS = "="
   should_exit = 0
-  has_key_occurred = 0
+  has_key_matched = 0
 
   if (ARGC < 2 + 1) {
     should_exit = 1
-    print "Error: at least 2 arguments are required where: key=arg1 and arg2+ are file paths to process." > "/dev/stderr"
+    print "Error: at least 2 arguments are required where: key=arg1 and arg2+ are files to process." > "/dev/stderr"
     exit 1
   }
 
@@ -19,19 +19,19 @@ BEGIN {
   }
 }
 
-$1 == key && $0 !~ /^#/ {
-  has_key_occurred = 1
+$1 == key && $0 !~ /^\s*#/ {
+  has_key_matched = 1
   value = remove_double_quotes($2)
 }
 
 END {
   if (!should_exit) {
-    if (!has_key_occurred) {
+    if (!has_key_matched) {
       should_exit = 1
       printf "Property '%s' not found.", key > "/dev/stderr"
       exit 2
-    }
-
-    print value
+    } else {
+			print value
+		}
   }
 }

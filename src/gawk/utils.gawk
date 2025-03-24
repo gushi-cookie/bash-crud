@@ -8,7 +8,6 @@ function remove_double_quotes(str) {
   return str
 }
 
-
 function escape_bash_chars(str) {
   gsub(/\\/, "\\\\", str) # Escape backslash
   gsub(/\$/, "\\$", str)  # Escape $

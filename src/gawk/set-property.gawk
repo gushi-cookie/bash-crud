@@ -10,12 +10,12 @@ function print_property() {
 
 BEGIN {
   FS = "="
-  key_occurrence_count = 0
+  key_match_count = 0
   should_exit = 0
 
   if (ARGC < 3 + 1) {
     should_exit = 1
-    print "Error: at least 3 arguments are required where: key=arg1, value=arg2 and arg3+ are file paths to process." > "/dev/stderr"
+    print "Error: at least 3 arguments are required where: key=arg1, value=arg2 and arg3+ are files to process." > "/dev/stderr"
     exit 1
   }
 
@@ -30,17 +30,17 @@ BEGIN {
 }
 
 {
-  if ($1 != key || $0 ~ /^#/) {
-    print
+  if ($1 != key || $0 ~ /^\s*#/) {
+    print $0
     next
   }
 
-  key_occurrence_count++
+  key_match_count++
   print_property()
 }
 
 END {
-  if (key_occurrence_count == 0 && !should_exit) {
+  if (key_match_count == 0 && !should_exit) {
     print_property()
   }
 }

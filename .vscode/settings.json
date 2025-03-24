@@ -8,8 +8,10 @@
 	"cSpell.words": [
 		"AWKPATH",
 		"Capturable",
+		"gsub",
 		"gushi",
 		"jqlang",
+		"mktemp",
 		"outpath",
 		"riscv",
 		"urlencode"
